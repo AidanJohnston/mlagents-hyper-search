@@ -8,9 +8,9 @@ class mlagentsInstance():
         self.name = name
         self.port
 
-    def kill():
-        p.kill()
+    def kill(self):
+        self.p.kill()
 
-    def start():
+    def start(self):
         self.p = Popen(f"mlagents-learn {self.configFilePath} --run-id={self.name} --base-port={self.port}",
                            creationflags=CREATE_NEW_CONSOLE)
