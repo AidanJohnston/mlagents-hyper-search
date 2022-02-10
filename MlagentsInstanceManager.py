@@ -10,7 +10,7 @@ import requests
 from mlagentsInstance import mlagentsInstance
 
 
-class MlagentsInstanceManager:
+class MLManager:
 
     def __init__(self,
                  defaultConfigFile,
@@ -22,18 +22,11 @@ class MlagentsInstanceManager:
                  port = 5005,
                  stopMinSteps = 500000,
                  earlyStoppingSteps = 100000,
-                 earlyStoppingTag = "Self-Play\\ELO"):
-        '''
-        :param defaultConfigFile:
-        :param configDir:
-        :param n_env:
-        :param m_env:
-        :param port:
-        :param stopMinSteps:
-        :param earlyStoppingSteps:
-        :param earlyStoppingTag:
-        '''
+                 earlyStoppingTag = "Self-Play\\ELO",
+                 reset=False):
         self.defaultConfigFile = defaultConfigFile
+        self.trialsFile = trialsFile
+        self.space = space
         self.configDir = configDir
         self.n_env = n_env
 
@@ -46,16 +39,17 @@ class MlagentsInstanceManager:
         self.stopMinSteps = stopMinSteps
         self.earlyStoppingSteps = earlyStoppingSteps
         self.earlyStoppingTag = earlyStoppingTag
+        self.reset = reset
 
         self.pTensorboard = self.__startTensorboardInstance__()
 
-    def run_trials( reset=False):
+    def run_trials(self):
 
         # attempt to load pickle file
-        if not reset:
+        if not self.reset:
             try:
                 # try to find file
-                trials = pickle.load(open(filename, 'rb'))
+                trials = pickle.load(open(f"{self.trialsFile}.pickle", 'rb'))
                 print(f"Trials file found.  Resuming from {len(trials.trials)} iterations.")
             except:
                 # cant find
@@ -70,24 +64,27 @@ class MlagentsInstanceManager:
         best = trials
 
         # iter untill max_evals is reached
-        i = len(trials.trials)
-        while i < max_evals:
-            i = i + save_iter
+        for i in range(len(trials.trials), self.n_env):
 
-            print(f"{i} of {max_evals}")
-            best = fmin(fn=objective,
-                        space=space,
+            augSpace = {"name": f"{self.trialsFile}_{i}",
+                        "port": self.port + i,
+                        "filepath": f"{self.trialsFile}_{i}.yaml",
+                        "space": self.space}
+
+            print(f"{i} of {self.n_env}")
+            best = fmin(fn=__objective__,
+                        space=augSpace,
                         algo=tpe.suggest,
                         max_evals=i,
                         trials=trials)
 
-            with open(filename, 'wb') as f:
+            with open(f"{self.trialsFile}.pickle", 'wb') as f:
                 pickle.dump(trials, f)
         return best
 
 
     def __startTensorboardInstance__(self):
-        return Popen("tensorboard --logdir ./results")
+        return Popen("tensorboard --logdir ./results", creationflags=CREATE_NEW_CONSOLE)
 
     def tesnorboardHTTPCall(self, tag, name, behaviour):
 
@@ -98,34 +95,23 @@ class MlagentsInstanceManager:
 
         try:
             r = requests.get(apiURL)
-
             # Everything A OK
             if r.status_code == 200:
                 return r.json()
         except:
             print("Could not connect to the tensorboard backend.")
 
-    def __objective__(self, space):
+def __objective__(space):
 
-        # Load YAML FILE
-        with open(self.defaultConfigFile, 'r') as file:
-            config = yaml.safe_load(file)
-
-
-        _space = merge(config, space)
-
-        filepath = ""
-        name = ""
-        port = 5005
-        yaml.dump(_space, filepath)
-
-        mlagentLearn = mlagentsInstance(filepath, name=name, port=port)
-
-        while mlagentLearn.p.poll() is None:
+    # Load YAML FILE
+    with open("./config/base.yaml", 'r') as file:
+        config = yaml.safe_load(file)
 
 
+    _space = merge(config, space["space"])
+    yaml.dump(_space, space['filepath'])
+
+    mlagentLearn = mlagentsInstance(space["filepath"], name=space["name"], port=space["port"])
 
 
-
-
-
+    return {'loss': 0, 'status': STATUS_OK}

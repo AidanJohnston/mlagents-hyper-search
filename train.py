@@ -8,9 +8,7 @@ import time
 from threading import Thread
 from subprocess import Popen, CREATE_NEW_CONSOLE
 from hyperopt import hp, fmin, tpe, STATUS_OK, Trials, pyll
-
-from MlagentsInstanceManager import MlagentsInstanceManager
-
+from MlagentsInstanceManager import MLManager
 
 def main():
 
@@ -35,7 +33,7 @@ def main():
     parser.add_argument("--earlyStoppingTag", '--est', required=False, default="Self-Play\\ELO", type=str,
                         help="Tensorboard tag to follow for early stopping")
 
-    args = parser.parse_args()
+    args = vars(parser.parse_args())
 
 
     space = {
@@ -61,17 +59,17 @@ def main():
         }
     }
 
-    mlagentsInstance = MlagentsInstanceManager(args['configFile'],
-                                               args['name'],
-                                               space,
-                                               configDir=args['configDir'],
-                                               n_env=args['n_env'],
-                                               m_env=args['m_env'],
-                                               port=args['port'],
-                                               stopMinSteps=args['stopMinSteps'],
-                                               earlyStoppingSteps=args['earlyStoppingSteps'],
-                                               earlyStoppingTag=args['earlyStoppingTag'])
+    mlagentsInstance = MLManager(args['configFile'],
+                                   args['name'],
+                                   space=space,
+                                   configDir=args['configDir'],
+                                   n_env=args['n_env'],
+                                   m_env=args['m_env'],
+                                   port=args['port'],
+                                   stopMinSteps=args['stopMinSteps'],
+                                   earlyStoppingSteps=args['earlyStoppingSteps'],
+                                   earlyStoppingTag=args['earlyStoppingTag'])
 
-
+    mlagentsInstance.run_trials()
 if __name__ == "__main__":
     main()
