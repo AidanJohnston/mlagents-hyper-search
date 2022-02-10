@@ -1,3 +1,5 @@
+from subprocess import Popen, CREATE_NEW_CONSOLE
+
 class mlagentsInstance():
 
     def __init__(self, configFilePath, name, port, callback):
