@@ -38,6 +38,30 @@ class MLManager:
 
         self.pTensorboard = self.__startTensorboardInstance__()
 
+        
+    space = {
+        "behaviors": {
+            "Player": {
+                "hyperparameters": {
+                    "learning_rate": loguniform('learning_rate', -10, -2),
+                    "beta": loguniform('beta', -7, -2),
+                    "epsilon": uniform("epsilon", 0.1, 0.3),
+                    "lambd": uniform('lambd', 0.9, 0.95)
+                },
+                "reward_signals": {
+                    "extrinsic": {
+                        "gamma": uniform("gamma_extrinsic", 0.9, 0.995)
+                    },
+                    "curiosity": {
+                        "strength": uniform("strength_curiosity", 0.1, 0.3),
+                        "gamma": uniform("gamma_curiosity", 0.9, 0.995),
+                        "learning_rate": loguniform('learning_rate_curiosity', -10, -2)
+                    }
+                }
+            }
+        }
+    }
+
     def run_trials(self):
 
         # attempt to load pickle file
