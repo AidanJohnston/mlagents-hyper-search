@@ -1,30 +1,25 @@
 import multiprocessing
-import pickle
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from subprocess import Popen, CREATE_NEW_CONSOLE
 
 import yaml
-from hyperopt import hp, fmin, tpe, STATUS_OK, Trials, pyll
 from jsonmerge import merge
-import requests
-
-from mlagentsInstance import mlagentsInstance
+from scipy.stats import loguniform
+from random import uniform
 
 
 class MLManager:
 
     def __init__(self,
                  defaultConfigFile,
-                 trialsFile,
-                 configDir = "./config",
-                 n_env = 10,
-                 m_env = -1,
-                 port = 5005,
-                 stopMinSteps = 500000,
-                 earlyStoppingSteps = 100000,
-                 earlyStoppingTag = "Self-Play\\ELO",
+                 configDir="./config/",
+                 n_env=10,
+                 m_env=-1,
+                 port=5005,
                  reset=False):
         self.defaultConfigFile = defaultConfigFile
-        self.trialsFile = trialsFile
         self.configDir = configDir
         self.n_env = n_env
 
@@ -36,101 +31,61 @@ class MLManager:
         self.port = port
         self.reset = reset
 
-        self.pTensorboard = self.__startTensorboardInstance__()
+    def run_trials(self):
 
-        
-    space = {
-        "behaviors": {
-            "Player": {
-                "hyperparameters": {
-                    "learning_rate": loguniform('learning_rate', -10, -2),
-                    "beta": loguniform('beta', -7, -2),
-                    "epsilon": uniform("epsilon", 0.1, 0.3),
-                    "lambd": uniform('lambd', 0.9, 0.95)
-                },
-                "reward_signals": {
-                    "extrinsic": {
-                        "gamma": uniform("gamma_extrinsic", 0.9, 0.995)
-                    },
-                    "curiosity": {
-                        "strength": uniform("strength_curiosity", 0.1, 0.3),
-                        "gamma": uniform("gamma_curiosity", 0.9, 0.995),
-                        "learning_rate": loguniform('learning_rate_curiosity', -10, -2)
+        spaces = []
+        # generate info for all trials
+        for i in range(self.n_env):
+            space = {}
+            space['space'] = {
+                "behaviors": {
+                    "Player": {
+                        "hyperparameters": {
+                            "learning_rate": float(loguniform(0.00001, 0.1).rvs()),
+                            "beta": float(loguniform(0.0001, 0.1).rvs()),
+                            "epsilon": uniform(0.1, 0.3),
+                            "lambd": uniform(0.9, 0.95)
+                        },
+                        "reward_signals": {
+                            "extrinsic": {
+                                "gamma": uniform(0.9, 0.995)
+                            },
+                            "curiosity": {
+                                "strength": uniform(0.1, 0.3),
+                                "gamma": uniform(0.9, 0.995),
+                                "learning_rate": float(loguniform(0.00001, 0.1).rvs())
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
 
-    def run_trials(self):
+            space['name'] = str(uuid.uuid4())
+            space['filepath'] = f"{self.configDir}{space['name']}.yaml"
+            space['port'] = self.port + i
+            space['defaultConfigFile'] = self.defaultConfigFile
+            spaces.append(space)
 
-        # attempt to load pickle file
-        if not self.reset:
-            try:
-                # try to find file
-                trials = pickle.load(open(f"{self.trialsFile}.pickle", 'rb'))
-                print(f"Trials file found.  Resuming from {len(trials.trials)} iterations.")
-            except:
-                # cant find
-                trials = Trials()
-                print("No Trials file found, will create new file.")
+        with ProcessPoolExecutor(max_workers=self.m_env) as executor:
+            results = executor.map(trial, spaces)
 
-        # Dont attempt to load pickle file
-        else:
-            print("Reseting, will write over trials file.")
-            trials = Trials()
+def trial(space):
 
-        best = trials
+    print(f"Starting Unity Environment {space['name']} on localhost:{space['port']}")
 
-        # iter untill max_evals is reached
-        for i in range(len(trials.trials), self.n_env):
-
-            augSpace = {"name": f"{self.trialsFile}_{i}",
-                        "port": self.port + i,
-                        "filepath": f"{self.trialsFile}_{i}.yaml",
-                        "space": self.space}
-
-            print(f"{i} of {self.n_env}")
-            best = fmin(fn=__objective__,
-                        space=augSpace,
-                        algo=tpe.suggest,
-                        max_evals=i,
-                        trials=trials)
-
-            with open(f"{self.trialsFile}.pickle", 'wb') as f:
-                pickle.dump(trials, f)
-        return best
-
-
-    def __startTensorboardInstance__(self):
-        return Popen("tensorboard --logdir ./results", creationflags=CREATE_NEW_CONSOLE)
-
-    def tesnorboardHTTPCall(self, tag, name, behaviour):
-
-        if self.pTensorboard is None:
-            self.pTensorboard = self.__startTensorboardInstance__()
-
-        apiURL = f"http://localhost:6006/data/plugin/scalars/scalars?tag={tag}&run={name}%5C{behaviour}"
-
-        try:
-            r = requests.get(apiURL)
-            # Everything A OK
-            if r.status_code == 200:
-                return r.json()
-        except:
-            print("Could not connect to the tensorboard backend.")
-
-def __objective__(space):
-
-    # Load YAML FILE
-    with open("./config/base.yaml", 'r') as file:
+    with open(space['defaultConfigFile'], "r") as file:
         config = yaml.safe_load(file)
 
+    _space = merge(config, space['space'])
 
-    _space = merge(config, space["space"])
-    yaml.dump(_space, space['filepath'])
+    with open(space['filepath'], "w") as file:
+        yaml.dump(_space, file)
 
-    mlagentLearn = mlagentsInstance(space["filepath"], name=space["name"], port=space["port"])
+    print(f"mlagents-learn {space['filepath']} --run-id={space['name']} --base-port={space['port']}")
+    p = Popen(f"mlagents-learn {space['filepath']} --run-id={space['name']} --base-port={space['port']}",
+              creationflags=CREATE_NEW_CONSOLE)
 
+    while p.poll() is None:
+        time.sleep(15)
 
-    return {'loss': 0, 'status': STATUS_OK}
+    return

@@ -1,26 +1,11 @@
 import argparse
-from concurrent.futures import ProcessPoolExecutor
-from logging import log
-import multiprocessing
-import os
-import pickle
-import time
-from threading import Thread
-from subprocess import Popen, CREATE_NEW_CONSOLE
-from hyperopt import hp, fmin, tpe, STATUS_OK, Trials, pyll
 
-from scipy.stats import loguniform
-from random import uniform
 from MlagentsInstanceManager import MLManager
 
 def main():
 
     parser = argparse.ArgumentParser()
-
-    parser.add_argument('configFile', type=str,
-                        help="The default config file each unity enviroment will build off of.")
-    parser.add_argument("name", type=str,
-                        help="Name of the trials run.")
+    parser.add_argument('base')
     parser.add_argument('--configDir', required=False, default="./config/", type=str,
                         help="Folder for storing training config files.")
     parser.add_argument("--n-env", required=False, default=10, type=int,
@@ -39,15 +24,11 @@ def main():
     args = vars(parser.parse_args())
 
 
-    mlagentsInstance = MLManager(args['configFile'],
-                                   args['name'],
+    mlagentsInstance = MLManager(args['base'],
                                    configDir=args['configDir'],
                                    n_env=args['n_env'],
                                    m_env=args['m_env'],
-                                   port=args['port'],
-                                   stopMinSteps=args['stopMinSteps'],
-                                   earlyStoppingSteps=args['earlyStoppingSteps'],
-                                   earlyStoppingTag=args['earlyStoppingTag'])
+                                   port=args['port'])
 
     mlagentsInstance.run_trials()
 if __name__ == "__main__":
