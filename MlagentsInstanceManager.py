@@ -15,7 +15,6 @@ class MLManager:
     def __init__(self,
                  defaultConfigFile,
                  trialsFile,
-                 space,
                  configDir = "./config",
                  n_env = 10,
                  m_env = -1,
@@ -26,7 +25,6 @@ class MLManager:
                  reset=False):
         self.defaultConfigFile = defaultConfigFile
         self.trialsFile = trialsFile
-        self.space = space
         self.configDir = configDir
         self.n_env = n_env
 
@@ -36,9 +34,6 @@ class MLManager:
             self.m_env = m_env
 
         self.port = port
-        self.stopMinSteps = stopMinSteps
-        self.earlyStoppingSteps = earlyStoppingSteps
-        self.earlyStoppingTag = earlyStoppingTag
         self.reset = reset
 
         self.pTensorboard = self.__startTensorboardInstance__()

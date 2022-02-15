@@ -8,6 +8,9 @@ import time
 from threading import Thread
 from subprocess import Popen, CREATE_NEW_CONSOLE
 from hyperopt import hp, fmin, tpe, STATUS_OK, Trials, pyll
+
+from scipy.stats import loguniform
+from random import uniform
 from MlagentsInstanceManager import MLManager
 
 def main():
@@ -36,32 +39,8 @@ def main():
     args = vars(parser.parse_args())
 
 
-    space = {
-        "behaviors": {
-            "Player": {
-                "hyperparameters": {
-                    "learning_rate": hp.loguniform('learning_rate', -10, -2),
-                    "beta": hp.loguniform('beta', -7, -2),
-                    "epsilon": hp.uniform("epsilon", 0.1, 0.3),
-                    "lambd": hp.uniform('lambd', 0.9, 0.95)
-                },
-                "reward_signals": {
-                    "extrinsic": {
-                        "gamma": hp.uniform("gamma_extrinsic", 0.9, 0.995)
-                    },
-                    "curiosity": {
-                        "strength": hp.uniform("strength_curiosity", 0.1, 0.3),
-                        "gamma": hp.uniform("gamma_curiosity", 0.9, 0.995),
-                        "learning_rate": hp.loguniform('learning_rate_curiosity', -10, -2)
-                    }
-                }
-            }
-        }
-    }
-
     mlagentsInstance = MLManager(args['configFile'],
                                    args['name'],
-                                   space=space,
                                    configDir=args['configDir'],
                                    n_env=args['n_env'],
                                    m_env=args['m_env'],
